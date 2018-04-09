@@ -12,7 +12,9 @@ chrome browser to be controlled by scripts
 
 If you already have chrome installed, and want to avoid downloading another version, try:
 ```PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1 npm install -g zombieteer```
+
 then run with ```zombieteer --new --bin=/path/to/chrome```
+
 note: the argument to bin must be the chrome binary itself, not a directory
 You only need to specify --bin once. If you want to change it, add --save-bin
 
