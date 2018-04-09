@@ -10,6 +10,35 @@ const repl = require("repl");
 Promise.promisifyAll(fs);
 
 let endpointFilename = ".wsEndpoint";
+let executableFilename = path.join(process.env.HOME, ".zombieteer-bin");
+
+async function saveExecutablePath(executablePath, force=false) {
+    if (!executablePath)
+        return;
+
+    let hasContents = !!await readExecutablePath()
+    if (hasContents && !force)
+        return;
+
+    try {
+        await fs.writeFileAsync(
+            executableFilename,
+            executablePath
+        );
+        console.log(`wrote executable path of chrome on` +
+            `${executableFilename}: -> ${executablePath}`);
+    } catch (e) { }
+}
+
+async function readExecutablePath() {
+    try {
+        return await fs.readFileAsync(
+            executableFilename,
+            { encoding: "utf-8" }
+        );
+    } catch (e) { }
+    return "";
+}
 
 async function connect(filename) {
     let wsEndpoint;
@@ -28,11 +57,11 @@ async function connect(filename) {
     return null;
 }
 
-async function launch() {
-    let browser = await puppeteer.launch({
+async function launch(args) {
+    let browser = await puppeteer.launch(Object.assign({
         headless: false,
         args: ['--no-sandbox'],
-    });
+    }, args));
     let wsEndpoint = browser.wsEndpoint();
     await fs.writeFileAsync(endpointFilename, wsEndpoint);
     return browser;
@@ -53,15 +82,38 @@ async function launch() {
         browser = await connect(`${scriptDir}/${endpointFilename}`);
     }
 
-    if (!browser) {
-        for (let arg of argv) {
-            arg = arg.replace(/^--?/, "")
-            if (arg == "new") {
-                browser = launch();
-            }
+    // parse command line arguments
+    let opts = {};
+    let args = [];
+    for (let arg of argv) {
+        let rx = /^--?/;
+        if (arg.match(rx)) {
+            arg = arg.replace(rx, "")
+            let fields = arg.split("=");
+            let k = fields[0];
+            let v = fields[1] || true;
+            opts[k] = v;
+        } else {
+            args.push(arg);
         }
-        console.log("* there is no browser instance running");
-        console.log("* run with --new run a new instance");
+    }
+
+    // --bin=/path/to/chrome
+    // --save-bin
+
+    var launchArgs = { }
+    let executablePath = opts.bin || (await readExecutablePath());
+    if (executablePath)
+        await saveExecutablePath(executablePath, !!opts["save-bin"]);
+    launchArgs["executablePath"] = executablePath;
+
+    if (!browser) {
+        if (opts.new) {
+            browser = launch(launchArgs);
+        } else {
+            console.log("* there is no browser instance running");
+            console.log("* run with --new run a new instance");
+        }
         return;
     }
 
@@ -117,8 +169,8 @@ async function launch() {
         }
     }
 
-    if (argv.length > 1 ) {
-        let scriptFilename = process.argv[argv.length-1];
+    if (args.length > 1 ) {
+        let scriptFilename = args[args.length-1];
         try {
             await loadScript(scriptFilename);
         } catch (e) {
@@ -130,4 +182,3 @@ async function launch() {
     if ( ! currentRepl)
         browser.disconnect();
 })();
-
