@@ -8,6 +8,8 @@ async function run({browser, currentPage, repl}) {
     await username.type("someuser");
     await password.type("blah");
     await username.press("Enter");
+
+    //repl(); // open a repl
 }
 
 module.exports = run;
