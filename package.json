@@ -1,7 +1,7 @@
 {
-  "name": "doctrac-puppet",
+  "name": "zombieteer",
   "version": "1.0.0",
-  "description": "",
+  "description": "a convenience wrapper for pupperteer.js",
   "main": "zombie.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
