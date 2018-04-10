@@ -22,6 +22,7 @@ let settings = {
     // TODO: must also save sqlite file locally
     local:      false,
     exec:       "",
+    reload:     "",
 }
 
 async function saveExecutablePath(executablePath, force=false) {
@@ -225,6 +226,15 @@ function parseCmdArgs() {
                 "must export a function: function(browser) {...}");
         }
     }
+
+    if (settings.reload) {
+        let id = settings.reload;
+        let page = await db.findPage(id, browser);
+        if (page) {
+            await page.reload();
+        }
+    }
+
     if (settings.exec) {
         // FIX: errors are not shown
         await (async function() {
