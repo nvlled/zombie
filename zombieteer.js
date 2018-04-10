@@ -17,8 +17,10 @@ let settings = {
     new:        false,
     repl:       false,
     bin:        "",
-    local:      false,
     "save-bin": false,
+    // TODO: must also save sqlite file locally
+    local:      false,
+    exec:       "",
 }
 
 async function saveExecutablePath(executablePath, force=false) {
@@ -50,13 +52,14 @@ async function readExecutablePath() {
 }
 
 async function connect(wsEndpoint) {
-    if ( ! wsEndpoint) {
-        return;
+    try {
+        return await puppeteer.connect({
+            browserWSEndpoint: wsEndpoint,
+        });
+    } catch(e) {
+        console.log("invalid endpoint:", wsEndpoint);
     }
-    let browser = await puppeteer.connect({
-        browserWSEndpoint: wsEndpoint,
-    });
-    return browser;
+    return null;
 }
 
 async function getEndPointFilename() {
@@ -75,7 +78,7 @@ async function readEndPoint() {
         return await fs.readFileAsync(filename, { encoding: "utf-8" } );
     } catch (e) {
         console.warn(
-            `failed to read endpoint from ${filename}: ${e.message}`
+            `failed to read endpoint: ${e.message}`
         );
     }
     return "";
@@ -127,14 +130,6 @@ function parseCmdArgs() {
     let endpoint = await readEndPoint();
     console.log("trying to connect to endpoint:", endpoint);
     let browser = await connect(endpoint);
-
-    let pageMap = {
-        // problem:
-        // to persist pageMap and share
-        // across process
-        /* pageId: page */
-    }
-
 
     var launchArgs = { }
     let executablePath = settings.bin || (await readExecutablePath());
@@ -202,6 +197,12 @@ function parseCmdArgs() {
             console.log("invalid module:", filename, 
                 "must export a function: function(browser) {...}");
         }
+    }
+    if (settings.exec) {
+        // FIX: errors are not shown
+        await (async function() {
+            console.log(await eval(settings.exec));
+        }).bind(scriptContext)();
     }
 
     if (args.length > 1 ) {
