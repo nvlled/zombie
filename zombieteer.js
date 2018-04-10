@@ -9,8 +9,17 @@ const repl = require("repl");
 
 Promise.promisifyAll(fs);
 
-let endpointFilename = ".wsEndpoint";
+let endpointFilename = ".zombieteer-ws-endpoint";
 let executableFilename = path.join(process.env.HOME, ".zombieteer-bin");
+
+// overridable with commandline arguments: --name=value
+let settings = {
+    new:        false,
+    repl:       false,
+    bin:        "",
+    local:      false,
+    "save-bin": false,
+}
 
 async function saveExecutablePath(executablePath, force=false) {
     if (!executablePath)
@@ -40,21 +49,42 @@ async function readExecutablePath() {
     return "";
 }
 
-async function connect(filename) {
-    let wsEndpoint;
+async function connect(wsEndpoint) {
+    if ( ! wsEndpoint) {
+        return;
+    }
+    let browser = await puppeteer.connect({
+        browserWSEndpoint: wsEndpoint,
+    });
+    return browser;
+}
+
+async function getEndPointFilename() {
+    if (settings.local) {
+        return endpointFilename;
+    } else {
+        let homeDir = process.env.HOME;
+        return `${homeDir}/${endpointFilename}`;
+    }
+}
+
+async function readEndPoint() {
+    let filename;
     try {
-        wsEndpoint = await fs.readFileAsync(filename, { encoding: "utf-8" } );
-        console.log("read wsEndpoint", wsEndpoint, "from", filename);
+        filename = await getEndPointFilename();
+        return await fs.readFileAsync(filename, { encoding: "utf-8" } );
+    } catch (e) {
+        console.warn(
+            `failed to read endpoint from ${filename}: ${e.message}`
+        );
+    }
+    return "";
+}
 
-        if (wsEndpoint) {
-            let browser = await puppeteer.connect({
-                browserWSEndpoint: wsEndpoint,
-            });
-            return browser;
-        }
-    } catch (e) { }
-
-    return null;
+async function saveEndPoint(wsEndpoint) {
+    let filename = await getEndPointFilename();
+    console.log(`saving endpoint to ${filename}: ${wsEndpoint}`);
+    await fs.writeFileAsync(filename, wsEndpoint);
 }
 
 async function launch(args) {
@@ -63,23 +93,14 @@ async function launch(args) {
         args: ['--no-sandbox'],
     }, args));
     let wsEndpoint = browser.wsEndpoint();
-    await fs.writeFileAsync(endpointFilename, wsEndpoint);
+    await saveEndPoint(wsEndpoint);
     return browser;
 }
 
-(async() => {
+function parseCmdArgs() {
     let argv = process.argv;
     if (path.basename(argv[0]) == "node") {
         argv.shift();
-    }
-
-    // search first in the current directory
-    let browser = await connect(endpointFilename);
-    if ( ! browser && argv.length > 1) {
-        // then search first in the script directory
-        let scriptFilename = process.argv[argv.length-1];
-        let scriptDir = path.dirname(scriptFilename)
-        browser = await connect(`${scriptDir}/${endpointFilename}`);
     }
 
     // parse command line arguments
@@ -97,18 +118,32 @@ async function launch(args) {
             args.push(arg);
         }
     }
+    Object.assign(settings, opts);
+    return args;
+}
 
-    // --bin=/path/to/chrome
-    // --save-bin
+(async() => {
+    let args = parseCmdArgs();
+    let endpoint = await readEndPoint();
+    console.log("trying to connect to endpoint:", endpoint);
+    let browser = await connect(endpoint);
+
+    let pageMap = {
+        // problem:
+        // to persist pageMap and share
+        // across process
+        /* pageId: page */
+    }
+
 
     var launchArgs = { }
-    let executablePath = opts.bin || (await readExecutablePath());
+    let executablePath = settings.bin || (await readExecutablePath());
     if (executablePath)
-        await saveExecutablePath(executablePath, !!opts["save-bin"]);
+        await saveExecutablePath(executablePath, !!settings["save-bin"]);
     launchArgs["executablePath"] = executablePath;
 
     if (!browser) {
-        if (opts.new) {
+        if (settings.new) {
             browser = launch(launchArgs);
         } else {
             console.log("* there is no browser instance running");
@@ -178,6 +213,9 @@ async function launch(args) {
             console.log(e.message);
         }
     }
+
+    if (settings.repl)
+        replStart();
 
     if ( ! currentRepl)
         browser.disconnect();
