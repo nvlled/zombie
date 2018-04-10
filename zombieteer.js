@@ -6,6 +6,7 @@ const process = require("process");
 const puppeteer = require('puppeteer');
 const fs = require("fs");
 const repl = require("repl");
+const db = require("./db");
 
 Promise.promisifyAll(fs);
 
@@ -155,29 +156,55 @@ function parseCmdArgs() {
         return pages[0];
     }
 
+    let pageId = page => {
+        return page.mainFrame()._id;
+    }
+
+    let identifyPage = async (id, page) => {
+        return await db.setPage(id, page);
+    }
+
+    let getPage = async id => {
+        let page = await db.findPage(id, browser);
+        if (!page) {
+            page = await browser.newPage();
+            await identifyPage(id, page);
+        }
+        return page;
+    }
+
+    let listPages = async () => {
+        for (let page of await browser.pages()) {
+            console.log(">",
+                await db.getId(page),
+                await page.title(),
+                page.url(),
+                "|",
+                page.mainFrame()._id,
+            );
+        }
+    }
+
+    let context = () => ({
+        browser,
+        currentPage,
+        repl: replStart,
+        pageId,
+        getPage,
+        identifyPage,
+        listPages,
+        hope: async (promise, k) => {
+            let val = await promise;
+            currentRepl.context[k || "__"] = val;
+        },
+    });
+
     let currentRepl = null;
     let replStart = () => {
         currentRepl = repl.start({
             prompt: ">>> ",
-            //eval(cmd, ctx, __, cb) {
-            //    let result = eval.call(ctx, cmd);
-            //    return cb(null, result);
-            //},
         });
-        Object.assign(currentRepl.context, {
-            browser,
-            currentPage,
-            hope: async (promise, k) => {
-                let val = await promise;
-                currentRepl.context[k || "__"] = val;
-            },
-        });
-    }
-
-    let scriptContext = {
-        browser,
-        currentPage,
-        repl: replStart,
+        Object.assign(currentRepl.context, context());
     }
 
     let loadScript = async function(filename) {
@@ -192,7 +219,7 @@ function parseCmdArgs() {
         else if (typeof module.run == "function")
             script = module.run;
         if (script) {
-            await script(scriptContext);
+            await script(context());
         } else {
             console.log("invalid module:", filename, 
                 "must export a function: function(browser) {...}");
@@ -202,7 +229,7 @@ function parseCmdArgs() {
         // FIX: errors are not shown
         await (async function() {
             console.log(await eval(settings.exec));
-        }).bind(scriptContext)();
+        }).bind(context())();
     }
 
     if (args.length > 1 ) {
