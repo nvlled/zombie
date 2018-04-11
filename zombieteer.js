@@ -51,7 +51,7 @@ async function readExecutablePath() {
             { encoding: "utf-8" }
         );
     } catch (e) { }
-    return "";
+    return null;
 }
 
 async function connect(wsEndpoint) {
@@ -89,8 +89,12 @@ async function readEndPoint() {
 
 async function saveEndPoint(wsEndpoint) {
     let filename = await getEndPointFilename();
+    if (!filename)
+        return;
     console.log(`saving endpoint to ${filename}: ${wsEndpoint}`);
-    await fs.writeFileAsync(filename, wsEndpoint);
+    try {
+        await fs.writeFileAsync(filename, wsEndpoint);
+    } catch(e) { }
 }
 
 async function launch(args) {
@@ -139,6 +143,7 @@ function parseCmdArgs() {
     if (executablePath)
         await saveExecutablePath(executablePath, !!settings["save-bin"]);
     launchArgs["executablePath"] = executablePath;
+    console.log("launch args", launchArgs);
 
     if (!browser) {
         if (settings.new) {
