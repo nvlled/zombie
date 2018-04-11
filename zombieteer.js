@@ -23,6 +23,7 @@ let settings = {
     local:      false,
     exec:       "",
     reload:     "",
+    url:        "",
 }
 
 async function saveExecutablePath(executablePath, force=false) {
@@ -230,7 +231,11 @@ function parseCmdArgs() {
     if (settings.reload) {
         let id = settings.reload;
         let page = await db.findPage(id, browser);
-        if (page) {
+        if (!page) {
+            page = await getPage(id);
+            if (settings.url)
+                await page.goto(settings.url);
+        } else {
             await page.reload();
         }
     }
