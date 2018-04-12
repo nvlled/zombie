@@ -3,8 +3,9 @@
 const Promise = require('bluebird');
 const path = require("path");
 const process = require("process");
-const puppeteer = require('puppeteer');
 const fs = require("fs");
+const throttle = require("throttleit");
+const puppeteer = require('puppeteer');
 const repl = require("repl");
 const db = require("./db");
 
@@ -24,6 +25,7 @@ let settings = {
     exec:       "",
     reload:     "",
     url:        "",
+    watch:      false,
 }
 
 async function saveExecutablePath(executablePath, force=false) {
@@ -177,6 +179,7 @@ function parseCmdArgs() {
             page = await browser.newPage();
             await identifyPage(id, page);
         }
+        page.setCacheEnabled(false);
         return page;
     }
 
@@ -233,15 +236,30 @@ function parseCmdArgs() {
         }
     }
 
+    let reloadPage = null;
+    if (settings.watch) {
+        let id = settings.reload = settings.reload || process.env.PWD;
+        id = path.basename(id);
+        fs.watch(".zombie", throttle(async function(eventType) {
+            if (reloadPage) {
+                console.log("file changed, reloading...", id);
+                await reloadPage.reload();
+                await reloadPage.evaluate(id => {
+                    document.title = "*"+id+"-"+document.title;
+                }, id);
+            }
+        }, 150));
+    }
+
     if (settings.reload) {
         let id = settings.reload;
-        let page = await db.findPage(id, browser);
-        if (!page) {
-            page = await getPage(id);
+        reloadPage = await db.findPage(id, browser);
+        if (!reloadPage) {
+            reloadPage = await getPage(id);
             if (settings.url)
-                await page.goto(settings.url);
+                await reloadPage.goto(settings.url);
         } else {
-            await page.reload();
+            await reloadPage.reload();
         }
     }
 
@@ -265,6 +283,7 @@ function parseCmdArgs() {
     if (settings.repl)
         replStart();
 
-    if ( ! currentRepl)
+    if ( ! currentRepl && !settings.watch) {
         browser.disconnect();
+    }
 })();
