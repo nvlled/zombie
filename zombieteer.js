@@ -240,7 +240,7 @@ function parseCmdArgs() {
     if (settings.watch) {
         let id = settings.reload = settings.reload || process.env.PWD;
         id = path.basename(id);
-        fs.watch(".zombie", throttle(async function(eventType) {
+        let handler = throttle(async function(eventType) {
             if (reloadPage) {
                 console.log("file changed, reloading...", id);
                 await reloadPage.reload();
@@ -248,7 +248,14 @@ function parseCmdArgs() {
                     document.title = "*"+id+"-"+document.title;
                 }, id);
             }
-        }, 150));
+        }, 150);
+        fs.watch(".zombie", handler);
+        fs.watch(".", function(type, filename) {
+            console.log("file "+type, ":", filename);
+        });
+        fs.watch(process.env.PWD, function(type, filename) {
+            console.log("file "+type, ":", filename);
+        });
     }
 
     if (settings.reload) {
