@@ -48,10 +48,10 @@ async function saveExecutablePath(executablePath, force=false) {
 
 async function readExecutablePath() {
     try {
-        return await fs.readFileAsync(
+        return (await fs.readFileAsync(
             executableFilename,
             { encoding: "utf-8" }
-        );
+        )).trim();
     } catch (e) { }
     return null;
 }
@@ -80,7 +80,7 @@ async function readEndPoint() {
     let filename;
     try {
         filename = await getEndPointFilename();
-        return await fs.readFileAsync(filename, { encoding: "utf-8" } );
+        return (await fs.readFileAsync(filename, { encoding: "utf-8" } )).trim();
     } catch (e) {
         console.warn(
             `failed to read endpoint: ${e.message}`
