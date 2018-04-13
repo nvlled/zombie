@@ -181,7 +181,7 @@ function parseCmdArgs() {
                 height: window.outerHeight,
             }
         });
-        page.setViewport({
+        await page.setViewport({
             width: screenSize.width,
             height: screenSize.height,
         });
@@ -193,7 +193,7 @@ function parseCmdArgs() {
             page = await browser.newPage();
             await identifyPage(id, page);
         }
-        setupPage(page);
+        await setupPage(page);
         return page;
     }
 
@@ -265,13 +265,14 @@ function parseCmdArgs() {
             if (settings.url)
                 await reloadPage.goto(settings.url);
         } else {
-            setupPage(reloadPage);
+            await setupPage(reloadPage);
             await reloadPage.reload({
                 waitUntil: "domcontentloaded",
             });
         }
     } else if (settings.url) {
         let page = await currentPage();
+        await setupPage(page);
         await page.goto(settings.url);
         console.log("opening url:", settings.url);
     } else if (settings.version) {
