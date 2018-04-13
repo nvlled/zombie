@@ -8,6 +8,7 @@ const throttle = require("throttleit");
 const puppeteer = require('puppeteer');
 const repl = require("repl");
 const db = require("./db");
+const util = require("./util");
 
 Promise.promisifyAll(fs);
 
@@ -137,7 +138,7 @@ function parseCmdArgs() {
 (async() => {
     let args = parseCmdArgs();
     let endpoint = await readEndPoint();
-    console.log("trying to connect to endpoint:", endpoint);
+    console.log("connect to endpoint:", endpoint);
     let browser = await connect(endpoint);
 
     var launchArgs = { }
@@ -145,7 +146,6 @@ function parseCmdArgs() {
     if (executablePath)
         await saveExecutablePath(executablePath, !!settings["save-bin"]);
     launchArgs["executablePath"] = executablePath;
-    console.log("launch args", launchArgs);
 
     if (!browser) {
         if (settings.new) {
@@ -173,13 +173,27 @@ function parseCmdArgs() {
         return await db.setPage(id, page);
     }
 
+    let setupPage = async page => {
+        page.setCacheEnabled(false);
+        let screenSize = await page.evaluate(() => {
+            return {
+                width: window.outerWidth,
+                height: window.outerHeight,
+            }
+        });
+        page.setViewport({
+            width: screenSize.width,
+            height: screenSize.height,
+        });
+    }
+
     let getPage = async id => {
         let page = await db.findPage(id, browser);
         if (!page) {
             page = await browser.newPage();
             await identifyPage(id, page);
         }
-        page.setCacheEnabled(false);
+        setupPage(page);
         return page;
     }
 
@@ -236,45 +250,42 @@ function parseCmdArgs() {
         }
     }
 
+    let noCmdRun = false;
     let reloadPage = null;
-    if (settings.watch) {
-        let id = settings.reload = settings.reload || process.env.PWD;
-        id = path.basename(id);
-        let handler = throttle(async function(eventType) {
-            if (reloadPage) {
-                console.log("file changed, reloading...", id);
-                await reloadPage.reload();
-                await reloadPage.evaluate(id => {
-                    document.title = "*"+id+"-"+document.title;
-                }, id);
-            }
-        }, 150);
-        fs.watch(".zombie", handler);
-        fs.watch(".", function(type, filename) {
-            console.log("file "+type, ":", filename);
-        });
-        fs.watch(process.env.PWD, function(type, filename) {
-            console.log("file "+type, ":", filename);
-        });
-    }
 
     if (settings.reload) {
         let id = settings.reload;
+        if (typeof id == "boolean")
+            id = process.env.PWD;
+
         reloadPage = await db.findPage(id, browser);
+
         if (!reloadPage) {
             reloadPage = await getPage(id);
             if (settings.url)
                 await reloadPage.goto(settings.url);
         } else {
-            await reloadPage.reload();
+            setupPage(reloadPage);
+            await reloadPage.reload({
+                waitUntil: "domcontentloaded",
+            });
         }
-    }
+    } else if (settings.url) {
+        let page = await currentPage();
+        await page.goto(settings.url);
+        console.log("opening url:", settings.url);
+    } else if (settings.version) {
+        let prog = path.basename(args[0]);
+        let version = await util.getVersion();
+        console.log(`${prog} version: ${version}`);
 
-    if (settings.exec) {
+    } else if (settings.exec) {
         // FIX: errors are not shown
         await (async function() {
             console.log(await eval(settings.exec));
         }).bind(context())();
+    } else {
+        noCmdRun = true;
     }
 
     if (args.length > 1 ) {
@@ -290,6 +301,9 @@ function parseCmdArgs() {
     if (settings.repl)
         replStart();
 
+    if (noCmdRun) {
+        console.log("** no command executed");
+    }
     if ( ! currentRepl && !settings.watch) {
         browser.disconnect();
     }
