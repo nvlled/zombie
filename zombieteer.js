@@ -173,8 +173,7 @@ function parseCmdArgs() {
         return await db.setPage(id, page);
     }
 
-    let setupPage = async page => {
-        page.setCacheEnabled(false);
+    let resizePage = async page => {
         let screenSize = await page.evaluate(() => {
             return {
                 width: window.outerWidth,
@@ -185,6 +184,11 @@ function parseCmdArgs() {
             width: screenSize.width,
             height: screenSize.height,
         });
+    }
+
+    let setupPage = async page => {
+        page.setCacheEnabled(false);
+        await resizePage(page);
     }
 
     let getPage = async id => {
@@ -299,12 +303,18 @@ function parseCmdArgs() {
         }
     }
 
-    if (settings.repl)
+    if (settings.repl) {
         replStart();
+        noCmdRun = false;
+    }
 
     if (noCmdRun) {
         console.log("** no command executed");
+    } else {
+        let pages = await browser.pages();
+        await Promise.all(pages.map(resizePage));
     }
+
     if ( ! currentRepl && !settings.watch) {
         browser.disconnect();
     }
