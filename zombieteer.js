@@ -27,6 +27,7 @@ let settings = {
     reload:     "",
     url:        "",
     watch:      false,
+    update:     false,
 }
 
 async function saveExecutablePath(executablePath, force=false) {
@@ -289,6 +290,19 @@ function parseCmdArgs() {
         await (async function() {
             console.log(await eval(settings.exec));
         }).bind(context())();
+    } else if (settings.update) {
+        console.log("updating...");
+        let cmd = "npm install -g zombieteer";
+        let [err, stdout, stderr] = await util.exec(cmd, {
+            env: Object.assign({
+                PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true,
+            }, process.env),
+        });
+        if (err) {
+            console.log(stderr);
+        } else {
+            console.log(stdout);
+        }
     } else {
         noCmdRun = true;
     }

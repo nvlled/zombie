@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const Promise = require('bluebird');
+const { exec } = require("child_process");
 Promise.promisifyAll(fs);
 
 let util = {
@@ -15,6 +16,14 @@ let util = {
             return match[1];
         }
         return "dev";
+    },
+
+    exec(cmd, env) {
+        return new Promise(resolve => {
+            exec(cmd, env, (...args) => {
+                resolve(args);
+            });
+        });
     },
 }
 module.exports = util;
