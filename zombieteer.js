@@ -28,6 +28,7 @@ let settings = {
     url:        "",
     watch:      false,
     update:     false,
+    slowmo:     null,
 }
 
 async function saveExecutablePath(executablePath, force=false) {
@@ -62,6 +63,7 @@ async function connect(wsEndpoint) {
     try {
         return await puppeteer.connect({
             browserWSEndpoint: wsEndpoint,
+            slowMo: parseFloat(settings.slowmo) || 0,
         });
     } catch(e) {
         console.log("invalid endpoint:", wsEndpoint);
@@ -139,7 +141,6 @@ function parseCmdArgs() {
 (async() => {
     let args = parseCmdArgs();
     let endpoint = await readEndPoint();
-    console.log("connect to endpoint:", endpoint);
     let browser = await connect(endpoint);
 
     var launchArgs = { }
@@ -147,6 +148,7 @@ function parseCmdArgs() {
     if (executablePath)
         await saveExecutablePath(executablePath, !!settings["save-bin"]);
     launchArgs["executablePath"] = executablePath;
+    launchArgs["slowMo"] = parseFloat(settings.slowmo) || 0;
 
     if (!browser) {
         if (settings.new) {
