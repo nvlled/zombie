@@ -29,6 +29,7 @@ let settings = {
     watch:      false,
     update:     false,
     slowmo:     null,
+    help:       false,
 }
 
 async function saveExecutablePath(executablePath, force=false) {
@@ -195,6 +196,7 @@ function parseCmdArgs() {
     }
 
     let getPage = async id => {
+        id = id || settings.page || process.env.PWD;
         let page = await db.findPage(id, browser);
         if (!page) {
             page = await browser.newPage();
@@ -304,6 +306,11 @@ function parseCmdArgs() {
             console.log(stderr);
         } else {
             console.log(stdout);
+        }
+    } else if (settings.help) {
+        console.log("options:");
+        for (let [k, v] of Object.entries(settings)) {
+            console.log(`\t--${k}=${v}`);
         }
     } else {
         noCmdRun = true;
